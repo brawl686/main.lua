@@ -1,72 +1,58 @@
--- [[ 👻 FE REAL INVISIBLE (서버 우회형) 👻 ]]
+-- [[ 👻 FE 위치 기만형 투명 (Desync) 스크립트 👻 ]]
 local player = game:GetService("Players").LocalPlayer
 local runService = game:GetService("RunService")
 local pgui = player:FindFirstChildOfClass("PlayerGui")
 
 -- 기존 GUI 삭제
-if pgui:FindFirstChild("RealInvisGui") then pgui.RealInvisGui:Destroy() end
+if pgui:FindFirstChild("DesyncInvisGui") then pgui.DesyncInvisGui:Destroy() end
 
 local sg = Instance.new("ScreenGui", pgui)
-sg.Name = "RealInvisGui"
+sg.Name = "DesyncInvisGui"
 sg.ResetOnSpawn = false
 
 local btn = Instance.new("TextButton", sg)
 btn.Size = UDim2.new(0, 160, 0, 50)
 btn.Position = UDim2.new(0, 30, 0.45, 0)
-btn.BackgroundColor3 = Color3.fromRGB(40, 0, 80) -- 보라색 간지
-btn.Text = "FE 투명: OFF"
+btn.BackgroundColor3 = Color3.fromRGB(0, 50, 100)
+btn.Text = "위치기만 투명: OFF"
 btn.TextColor3 = Color3.new(1, 1, 1)
 btn.Font = Enum.Font.GothamBold
 btn.TextSize = 14
 Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
 
 local active = false
-local fakeChar = nil
+local offset = Vector3.new(0, 1000, 0) -- 서버에는 1000미터 아래에 있는 것처럼 속임
 
--- 🛠️ FE 우회 투명화 핵심 함수
-local function toggleInvis(state)
-    local char = player.Character
-    if not char or not char:FindFirstChild("LowerTorso") then return end
-    
-    if state then
-        -- 1. 관절(Motor6D)을 조작해서 서버가 네 위치를 못 찾게 만듦
-        for _, v in pairs(char:GetDescendants()) do
-            if v:IsA("Motor6D") and v.Name ~= "Neck" then
-                v:Destroy() -- 관절을 파괴해서 서버 판정을 없앰 (FE 우회의 핵심!)
+-- 🛠️ 핵심 로직: 서버와 내 위치를 찢어버리기
+runService.RenderStepped:Connect(function()
+    if active and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local root = player.Character.HumanoidRootPart
+        -- 내 화면에선 정상적으로 보이지만, 서버로 보내는 신호는 엉뚱한 곳으로!
+        for _, v in pairs(player.Character:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.CanTouch = false -- 칼 안 닿게 판정도 끔
             end
         end
-        -- 2. 내 화면에서도 투명하게 처리
-        for _, v in pairs(char:GetDescendants()) do
-            if v:IsA("BasePart") or v:IsA("Decal") then
-                v.Transparency = 1
-            end
-        end
-        print("FE Invisible Activated!")
-    else
-        -- 3. 끄면 캐릭터를 다시 불러와서 복구 (가장 확실한 방법)
-        player:LoadCharacter()
     end
-end
+end)
 
--- 버튼 클릭
+-- 버튼 작동
 btn.MouseButton1Click:Connect(function()
     active = not active
-    btn.Text = active and "FE 투명: ON" or "FE 투명: OFF"
-    btn.BackgroundColor3 = active and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(40, 0, 80)
-    btn.TextColor3 = active and Color3.new(0, 0, 0) or Color3.new(1, 1, 1)
+    btn.Text = active and "위치기만 투명: ON" or "위치기만 투명: OFF"
+    btn.BackgroundColor3 = active and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(0, 50, 100)
     
-    toggleInvis(active)
-end)
-
--- 한국 머더 전용: 이름표(BillboardGui) 실시간 파괴
-runService.RenderStepped:Connect(function()
-    if active and player.Character then
-        for _, v in pairs(player.Character:GetDescendants()) do
-            if v:IsA("BillboardGui") then
-                v.Enabled = false
-            end
+    local char = player.Character
+    if char and char:FindFirstChild("LowerTorso") then
+        if active then
+            -- 캐릭터의 실제 렌더링 부위를 서버가 못 찾는 곳으로 날림
+            char.LowerTorso:BreakJoints() -- 관절을 미세하게 틀어버림
+            print("Desync Activated!")
+        else
+            -- 복구는 캐릭터 재설정이 가장 깔끔
+            player:LoadCharacter()
         end
     end
 end)
 
-print("FE True Invisibility for KR Murder Loaded!")
+print("FE Desync Invisibility Loaded!")
