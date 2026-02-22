@@ -1,66 +1,68 @@
 local player = game:GetService("Players").LocalPlayer
 local pgui = player:FindFirstChildOfClass("PlayerGui")
+local runService = game:GetService("RunService")
 
--- 기존 GUI 삭제 (중복 생성 방지)
-if pgui:FindFirstChild("GodModeGui") then
-    pgui.GodModeGui:Destroy()
-end
+-- 기존 GUI 삭제
+if pgui:FindFirstChild("AntiMurderGui") then pgui.AntiMurderGui:Destroy() end
 
--- 1. Create ScreenGui
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "GodModeGui"
+screenGui.Name = "AntiMurderGui"
 screenGui.Parent = pgui
 screenGui.ResetOnSpawn = false
 
--- 2. Create Toggle Button (모바일 중앙 왼쪽 배치)
 local button = Instance.new("TextButton")
-button.Name = "ToggleButton"
-button.Size = UDim2.new(0, 120, 0, 40)
-button.Position = UDim2.new(0.05, 0, 0.4, 0) -- 화면 왼쪽 살짝 안쪽
-button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.Text = "GOD: OFF"
+button.Size = UDim2.new(0, 130, 0, 40)
+button.Position = UDim2.new(0, 30, 0.4, 0) -- 모바일 왼쪽 고정!
+button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+button.Text = "안티 머더: OFF"
 button.Font = Enum.Font.GothamBold
-button.TextSize = 16
+button.TextSize = 14
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
 button.Parent = screenGui
 
--- 모서리 둥글게 (간지)
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 8)
 corner.Parent = button
 
 local enabled = false
 
--- 3. Toggle Logic
-button.MouseButton1Click:Connect(function()
-    enabled = not enabled
-    
-    if enabled then
-        button.Text = "GOD: ON"
-        button.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
-        
-        task.spawn(function()
-            while enabled do
-                local char = player.Character
-                if char then
-                    local hum = char:FindFirstChildOfClass("Humanoid")
-                    if hum then
-                        hum.MaxHealth = 999999
-                        hum.Health = 999999
+-- 🗡️ 안티 머더 핵심 로직 (FE 우회)
+local function RemoveHitboxes()
+    for _, otherPlayer in pairs(game:GetService("Players"):GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character then
+            -- 머더가 손에 들고 있는 도구(칼 등) 찾기
+            for _, tool in pairs(otherPlayer.Character:GetChildren()) do
+                if tool:IsA("Tool") then
+                    -- 도구 안의 '닿음 판정(TouchInterest)'을 내 클라이언트에서만 파괴!
+                    for _, part in pairs(tool:GetDescendants()) do
+                        if part:IsA("TouchInterest") then
+                            part:Destroy()
+                        end
                     end
                 end
+            end
+        end
+    end
+end
+
+-- 버튼 클릭 시 작동
+button.MouseButton1Click:Connect(function()
+    enabled = not enabled
+    if enabled then
+        button.Text = "안티 머더: ON"
+        button.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+        
+        -- 무적이 켜져 있는 동안 0.1초마다 다른 사람들의 칼 판정을 계속 지움!
+        task.spawn(function()
+            while enabled do
+                pcall(RemoveHitboxes)
                 task.wait(0.1)
             end
         end)
     else
-        button.Text = "GOD: OFF"
-        button.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
-        
-        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
-            player.Character.Humanoid.MaxHealth = 100
-            player.Character.Humanoid.Health = 100
-        end
+        button.Text = "안티 머더: OFF"
+        button.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     end
 end)
 
-print("God Mode GUI Loaded! Check your screen.")
+print("FE Anti-Murder Loaded!")
