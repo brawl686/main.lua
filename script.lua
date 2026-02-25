@@ -1,58 +1,111 @@
--- [[ 👻 FE 위치 기만형 투명 (Desync) 스크립트 👻 ]]
-local player = game:GetService("Players").LocalPlayer
-local runService = game:GetService("RunService")
-local pgui = player:FindFirstChildOfClass("PlayerGui")
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
 
--- 기존 GUI 삭제
-if pgui:FindFirstChild("DesyncInvisGui") then pgui.DesyncInvisGui:Destroy() end
+-- GUI 생성
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FlyGui"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
 
-local sg = Instance.new("ScreenGui", pgui)
-sg.Name = "DesyncInvisGui"
-sg.ResetOnSpawn = false
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 200, 0, 150)
+mainFrame.Position = UDim2.new(0.5, -100, 0.5, -75)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+mainFrame.Active = true
+mainFrame.Draggable = true -- UI 드래그 가능하게 설정
+mainFrame.Parent = screenGui
 
-local btn = Instance.new("TextButton", sg)
-btn.Size = UDim2.new(0, 160, 0, 50)
-btn.Position = UDim2.new(0, 30, 0.45, 0)
-btn.BackgroundColor3 = Color3.fromRGB(0, 50, 100)
-btn.Text = "위치기만 투명: OFF"
-btn.TextColor3 = Color3.new(1, 1, 1)
-btn.Font = Enum.Font.GothamBold
-btn.TextSize = 14
-Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Text = "Fly Menu"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.BackgroundTransparency = 1
+title.Parent = mainFrame
 
-local active = false
-local offset = Vector3.new(0, 1000, 0) -- 서버에는 1000미터 아래에 있는 것처럼 속임
+-- Fly 버튼
+local flyButton = Instance.new("TextButton")
+flyButton.Size = UDim2.new(0.8, 0, 0, 40)
+flyButton.Position = UDim2.new(0.1, 0, 0.3, 0)
+flyButton.Text = "Fly: OFF"
+flyButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+flyButton.Parent = mainFrame
 
--- 🛠️ 핵심 로직: 서버와 내 위치를 찢어버리기
-runService.RenderStepped:Connect(function()
-    if active and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local root = player.Character.HumanoidRootPart
-        -- 내 화면에선 정상적으로 보이지만, 서버로 보내는 신호는 엉뚱한 곳으로!
-        for _, v in pairs(player.Character:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.CanTouch = false -- 칼 안 닿게 판정도 끔
-            end
-        end
-    end
+-- 속도 입력창 (TextBox)
+local speedInput = Instance.new("TextBox")
+speedInput.Size = UDim2.new(0.8, 0, 0, 30)
+speedInput.Position = UDim2.new(0.1, 0, 0.65, 0)
+speedInput.PlaceholderText = "Speed (Default: 50)"
+speedInput.Text = "50"
+speedInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+speedInput.Parent = mainFrame
+
+-- 변수 설정
+local flying = false
+local speed = 50
+local bv, bg
+
+-- 비행 로직
+local function startFly()
+	local char = player.Character
+	if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+	local root = char.HumanoidRootPart
+
+	flying = true
+	flyButton.Text = "Fly: ON"
+	flyButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+
+	-- 물리 엔진 설정
+	bv = Instance.new("BodyVelocity")
+	bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+	bv.Velocity = Vector3.new(0, 0, 0)
+	bv.Parent = root
+
+	bg = Instance.new("BodyGyro")
+	bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+	bg.CFrame = root.CFrame
+	bg.Parent = root
+
+	char.Humanoid.PlatformStand = true
+
+	-- 움직임 루프
+	task.spawn(function()
+		while flying do
+			task.wait()
+			-- 카메라 방향에 맞춰 이동
+			bv.Velocity = game.Workspace.CurrentCamera.CFrame.LookVector * speed
+			bg.CFrame = game.Workspace.CurrentCamera.CFrame
+		end
+	end)
+end
+
+local function stopFly()
+	flying = false
+	flyButton.Text = "Fly: OFF"
+	flyButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+	
+	if bv then bv:Destroy() end
+	if bg then bg:Destroy() end
+	
+	if player.Character and player.Character:FindFirstChild("Humanoid") then
+		player.Character.Humanoid.PlatformStand = false
+	end
+end
+
+-- 버튼 클릭 이벤트
+flyButton.MouseButton1Click:Connect(function()
+	if flying then
+		stopFly()
+	else
+		startFly()
+	end
 end)
 
--- 버튼 작동
-btn.MouseButton1Click:Connect(function()
-    active = not active
-    btn.Text = active and "위치기만 투명: ON" or "위치기만 투명: OFF"
-    btn.BackgroundColor3 = active and Color3.fromRGB(200, 0, 0) or Color3.fromRGB(0, 50, 100)
-    
-    local char = player.Character
-    if char and char:FindFirstChild("LowerTorso") then
-        if active then
-            -- 캐릭터의 실제 렌더링 부위를 서버가 못 찾는 곳으로 날림
-            char.LowerTorso:BreakJoints() -- 관절을 미세하게 틀어버림
-            print("Desync Activated!")
-        else
-            -- 복구는 캐릭터 재설정이 가장 깔끔
-            player:LoadCharacter()
-        end
-    end
+-- 속도 변경 이벤트
+speedInput.FocusLost:Connect(function()
+	local newSpeed = tonumber(speedInput.Text)
+	if newSpeed then
+		speed = newSpeed
+	else
+		speedInput.Text = tostring(speed) -- 숫자가 아니면 이전 속도로 복구
+	end
 end)
-
-print("FE Desync Invisibility Loaded!")
